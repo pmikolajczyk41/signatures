@@ -283,6 +283,26 @@ where
         signature: &Signature<C>,
         recovery_id: RecoveryId,
     ) -> Result<Self> {
+        let vk = Self::recover_from_prehash_unchecked(prehash, signature, recovery_id)?;
+        vk.verify_prehash(prehash, signature)?;
+        Ok(vk)
+    }
+
+    /// Recover a [`VerifyingKey`] from the given `prehash` of a message, the
+    /// signature over that prehashed message, and a [`RecoveryId`], without
+    /// verifying that the recovered key actually verifies the signature.
+    ///
+    /// # Security
+    ///
+    /// The caller must ensure that the recovered key is compared against a
+    /// known expected value (e.g. a trusted address), so that an incorrect
+    /// `recovery_id` cannot result in silently accepting a wrong key.
+    #[allow(non_snake_case)]
+    pub fn recover_from_prehash_unchecked(
+        prehash: &[u8],
+        signature: &Signature<C>,
+        recovery_id: RecoveryId,
+    ) -> Result<Self> {
         let (r, s) = signature.split_scalars();
         let z = <Scalar<C> as Reduce<C::Uint>>::reduce_bytes(&bits2field::<C>(prehash)?);
 
@@ -307,12 +327,7 @@ where
         let u1 = -(r_inv * z);
         let u2 = r_inv * *s;
         let pk = ProjectivePoint::<C>::lincomb(&ProjectivePoint::<C>::generator(), &u1, &R, &u2);
-        let vk = Self::from_affine(pk.into())?;
-
-        // Ensure signature verifies with the recovered key
-        // vk.verify_prehash(prehash, signature)?;
-
-        Ok(vk)
+        Self::from_affine(pk.into())
     }
 }
 
